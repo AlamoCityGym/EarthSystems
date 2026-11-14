@@ -1,0 +1,2161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unit 6 — Ocean Floor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500&display=swap">
+  <style>
+    /* =========================================================
+       DESIGN TOKENS — deep sea, mysterious, bioluminescent
+       Layout: full-bleed graphic top, day nav bottom strip
+    ========================================================= */
+    :root {
+      --bg: #020b18;
+      --bg2: #04111f;
+      --surface: #061928;
+      --surface2: #0a2238;
+      --border: rgba(0,180,255,0.1);
+      --fg: #d6eaf8;
+      --fg-muted: #5b8fa8;
+      --accent: #00b4ff;
+      --accent2: #00ffc8;
+      --warn: #f59e0b;
+      --glow-blue: rgba(0,180,255,0.18);
+      --glow-teal: rgba(0,255,200,0.12);
+      color-scheme: dark;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: 'Inter', sans-serif;
+    }
+
+    /* ---- Layout shell ---- */
+    #app {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    /* Top bar */
+    #topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 28px;
+      background: rgba(2,11,24,0.95);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 50;
+    }
+
+    .back-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.78rem;
+      color: var(--fg-muted);
+      text-decoration: none;
+      transition: color 0.2s;
+      letter-spacing: 0.03em;
+    }
+    .back-btn:hover { color: var(--accent); }
+
+    .unit-label {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    .teks-badge {
+      font-size: 0.65rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      background: rgba(0,180,255,0.08);
+      border: 1px solid rgba(0,180,255,0.2);
+      color: var(--accent);
+      letter-spacing: 0.06em;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .teks-badge:hover { background: rgba(0,180,255,0.15); }
+
+    /* Main stage — graphic fills this */
+    #stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Day panels */
+    .day-panel {
+      position: absolute;
+      inset: 0;
+      display: none;
+      flex-direction: column;
+    }
+    .day-panel.active { display: flex; }
+
+    /* Day header overlay */
+    .day-header {
+      position: absolute;
+      top: 20px;
+      left: 28px;
+      z-index: 10;
+    }
+    .day-num {
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 4px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .day-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: clamp(1.2rem, 2.5vw, 1.8rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      text-shadow: 0 2px 20px rgba(0,0,0,0.8);
+      text-wrap: balance;
+      max-width: 500px;
+    }
+    .day-type {
+      margin-top: 6px;
+      font-size: 0.72rem;
+      color: var(--fg-muted);
+      letter-spacing: 0.04em;
+    }
+    .day-type.direct { color: var(--accent); }
+    .day-type.research { color: var(--accent2); }
+    .day-type.lab { color: var(--warn); }
+
+    /* Canvas/graphic area */
+    .graphic-area {
+      flex: 1;
+      position: relative;
+    }
+    .graphic-area canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* ---- Hotspot system ---- */
+    .hotspot {
+      position: absolute;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: rgba(0,180,255,0.15);
+      border: 2px solid var(--accent);
+      cursor: pointer;
+      transform: translate(-50%, -50%);
+      transition: transform 0.2s, background 0.2s;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hotspot::after {
+      content: '+';
+      color: var(--accent);
+      font-size: 1rem;
+      font-weight: 300;
+      line-height: 1;
+    }
+    .hotspot:hover {
+      transform: translate(-50%, -50%) scale(1.2);
+      background: rgba(0,180,255,0.3);
+    }
+    .hotspot.pulse::before {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,180,255,0.4);
+      animation: pulse-ring 2s ease-out infinite;
+    }
+
+    @keyframes pulse-ring {
+      0% { transform: scale(0.8); opacity: 0.8; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* ---- Info popup ---- */
+    #info-popup {
+      position: absolute;
+      z-index: 40;
+      background: rgba(4,17,31,0.96);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px 20px;
+      max-width: 280px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(0,180,255,0.1);
+      display: none;
+      pointer-events: none;
+    }
+    #info-popup.visible {
+      display: block;
+      pointer-events: auto;
+    }
+    #info-popup h3 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    #info-popup p {
+      font-size: 0.78rem;
+      color: var(--fg-muted);
+      line-height: 1.6;
+    }
+    #info-popup .close-popup {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      background: none;
+      border: none;
+      color: var(--fg-muted);
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    #info-popup .close-popup:hover { color: var(--fg); }
+
+    /* ---- TEKS overlay ---- */
+    #teks-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background: rgba(0,0,0,0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+    }
+    #teks-overlay.visible { display: flex; }
+    .teks-modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 32px;
+      max-width: 500px;
+      width: 90%;
+      position: relative;
+    }
+    .teks-modal h2 {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 20px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .teks-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .teks-item:last-child { border-bottom: none; }
+    .teks-code {
+      font-size: 0.7rem;
+      font-family: 'Space Grotesk', sans-serif;
+      color: var(--accent2);
+      letter-spacing: 0.06em;
+      margin-bottom: 4px;
+    }
+    .teks-text {
+      font-size: 0.8rem;
+      color: var(--fg-muted);
+      line-height: 1.5;
+    }
+    .teks-close {
+      position: absolute;
+      top: 16px;
+      right: 18px;
+      background: none;
+      border: none;
+      color: var(--fg-muted);
+      cursor: pointer;
+      font-size: 1.3rem;
+    }
+    .teks-close:hover { color: var(--fg); }
+
+    /* ---- Day nav strip ---- */
+    #day-nav {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      background: rgba(2,11,24,0.97);
+      border-top: 1px solid var(--border);
+      padding: 0 16px;
+      flex-shrink: 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    #day-nav::-webkit-scrollbar { display: none; }
+
+    .day-btn {
+      flex-shrink: 0;
+      padding: 14px 16px;
+      font-size: 0.72rem;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 500;
+      color: var(--fg-muted);
+      background: none;
+      border: none;
+      cursor: pointer;
+      transition: color 0.2s;
+      letter-spacing: 0.03em;
+      position: relative;
+      white-space: nowrap;
+    }
+    .day-btn::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 0;
+      height: 2px;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.2s;
+    }
+    .day-btn:hover { color: var(--fg); }
+    .day-btn.active {
+      color: var(--accent);
+    }
+    .day-btn.active::after { width: 60%; }
+
+    .day-btn .day-icon {
+      display: block;
+      font-size: 0.9rem;
+      margin-bottom: 2px;
+      text-align: center;
+    }
+
+    /* ---- Nav arrows ---- */
+    .nav-arrow {
+      flex-shrink: 0;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--fg-muted);
+      border-radius: 8px;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      margin: 0 6px;
+      transition: color 0.2s, border-color 0.2s;
+      font-size: 0.9rem;
+    }
+    .nav-arrow:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ============================================================
+       DAY-SPECIFIC STYLES
+    ============================================================ */
+
+    /* Day 1 — Ocean floor cross-section */
+    #day1-canvas { background: linear-gradient(180deg, #001829 0%, #000e1a 100%); }
+
+    /* Day 3 — Vocab diagram */
+    .vocab-diagram {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Day 5 — Comparison slider */
+    .compare-container {
+      width: 100%;
+      height: 100%;
+      position: relative;
+      display: flex;
+      cursor: col-resize;
+      overflow: hidden;
+    }
+    .compare-side {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+    .compare-left { left: 0; }
+    .compare-right { right: 0; }
+    .compare-label {
+      position: absolute;
+      top: 20px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 5px 12px;
+      border-radius: 20px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .compare-label.left { left: 16px; background: rgba(0,0,0,0.6); color: #64b5f6; border: 1px solid rgba(100,181,246,0.3); }
+    .compare-label.right { right: 16px; background: rgba(0,0,0,0.6); color: #00ffc8; border: 1px solid rgba(0,255,200,0.3); }
+    .compare-divider {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: rgba(255,255,255,0.4);
+      cursor: col-resize;
+      z-index: 10;
+    }
+    .compare-handle {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      left: -18px;
+      width: 36px;
+      height: 36px;
+      background: white;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 700;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.5);
+    }
+
+    /* Day 9 — Station cards */
+    .stations-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 16px;
+      padding: 60px 28px 20px;
+      height: 100%;
+      align-content: start;
+      overflow-y: auto;
+    }
+    .station-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px;
+      cursor: pointer;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .station-card:hover {
+      transform: translateY(-2px);
+      border-color: var(--accent);
+    }
+    .station-num {
+      font-size: 0.65rem;
+      color: var(--accent);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+    .station-name {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    .station-desc {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      line-height: 1.5;
+    }
+
+    /* Day 10 — Review flashcards */
+    .flashcard-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      gap: 20px;
+      padding: 60px 28px 20px;
+    }
+    .flashcard {
+      width: min(500px, 90%);
+      height: 220px;
+      perspective: 1000px;
+      cursor: pointer;
+    }
+    .flashcard-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      transform-style: preserve-3d;
+      transition: transform 0.5s;
+    }
+    .flashcard.flipped .flashcard-inner { transform: rotateY(180deg); }
+    .flashcard-face {
+      position: absolute;
+      inset: 0;
+      border-radius: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+      backface-visibility: hidden;
+    }
+    .flashcard-front {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+    }
+    .flashcard-back {
+      background: linear-gradient(135deg, rgba(0,180,255,0.15), rgba(0,255,200,0.1));
+      border: 1px solid rgba(0,180,255,0.3);
+      transform: rotateY(180deg);
+    }
+    .flashcard-term {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 1.3rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .flashcard-hint {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+    }
+    .flashcard-def {
+      font-size: 0.85rem;
+      color: var(--fg);
+      line-height: 1.6;
+    }
+    .card-counter {
+      font-size: 0.75rem;
+      color: var(--fg-muted);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .card-nav-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 8px 20px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 0.8rem;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .card-nav-btn:hover { border-color: var(--accent); color: var(--accent); }
+  </style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Top bar -->
+  <div id="topbar">
+    <a href="../../index.html" class="back-btn">← All Units</a>
+    <div class="unit-label">Unit 6 — Ocean Floor &amp; Chemistry</div>
+    <button class="teks-badge" onclick="toggleTEKS()">TEKS ▾</button>
+  </div>
+
+  <!-- Stage -->
+  <div id="stage">
+
+    <!-- DAY 1: Ocean Floor Features -->
+    <div class="day-panel active" id="panel-1">
+      <div class="day-header">
+        <div class="day-num">Day 1</div>
+        <div class="day-title">Ocean Floor Features</div>
+        <div class="day-type direct">★ Direct Instruction</div>
+      </div>
+      <div class="graphic-area" id="day1-graphic">
+        <canvas id="day1-canvas"></canvas>
+        <!-- hotspots injected by JS -->
+      </div>
+    </div>
+
+    <!-- DAY 2: Sonar & Bathymetry -->
+    <div class="day-panel" id="panel-2">
+      <div class="day-header">
+        <div class="day-num">Day 2</div>
+        <div class="day-title">Mapping the Ocean Floor: Sonar &amp; Bathymetry</div>
+        <div class="day-type direct">★ Direct Instruction</div>
+      </div>
+      <div class="graphic-area" id="day2-graphic">
+        <canvas id="day2-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 3: Vocab Diagram -->
+    <div class="day-panel" id="panel-3">
+      <div class="day-header">
+        <div class="day-num">Day 3</div>
+        <div class="day-title">Ocean Floor Vocab &amp; Diagram</div>
+        <div class="day-type">📋 Student Activity</div>
+      </div>
+      <div class="graphic-area" id="day3-graphic">
+        <canvas id="day3-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 4: Ocean Chemistry -->
+    <div class="day-panel" id="panel-4">
+      <div class="day-header">
+        <div class="day-num">Day 4</div>
+        <div class="day-title">Ocean Chemistry: Salt, Gas &amp; Nutrients</div>
+        <div class="day-type direct">★ Direct Instruction</div>
+      </div>
+      <div class="graphic-area" id="day4-graphic">
+        <canvas id="day4-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 5: Early vs Modern Ocean -->
+    <div class="day-panel" id="panel-5">
+      <div class="day-header">
+        <div class="day-num">Day 5</div>
+        <div class="day-title">Early Ocean vs. Modern Ocean</div>
+        <div class="day-type">📋 Student Activity</div>
+      </div>
+      <div class="graphic-area" id="day5-graphic" style="cursor:col-resize;">
+        <canvas id="day5-canvas"></canvas>
+        <div id="compare-label-left" class="compare-label left" style="position:absolute;z-index:5;">Early Earth (~4 Bya)</div>
+        <div id="compare-label-right" class="compare-label right" style="position:absolute;z-index:5;">Modern Ocean</div>
+      </div>
+    </div>
+
+    <!-- DAY 6: Hydrothermal Vents -->
+    <div class="day-panel" id="panel-6">
+      <div class="day-header">
+        <div class="day-num">Day 6</div>
+        <div class="day-title">Hydrothermal Vents &amp; Deep Sea Life</div>
+        <div class="day-type direct">★ Direct Instruction</div>
+      </div>
+      <div class="graphic-area" id="day6-graphic">
+        <canvas id="day6-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 7: Research Friday — ambient -->
+    <div class="day-panel" id="panel-7">
+      <div class="day-header">
+        <div class="day-num">Day 7</div>
+        <div class="day-title">Research Friday — Vent Ecosystems</div>
+        <div class="day-type research">🔬 Student Research</div>
+      </div>
+      <div class="graphic-area" id="day7-graphic">
+        <canvas id="day7-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 8: Sediment Cores -->
+    <div class="day-panel" id="panel-8">
+      <div class="day-header">
+        <div class="day-num">Day 8</div>
+        <div class="day-title">Ocean Sediment &amp; Sediment Cores</div>
+        <div class="day-type direct">★ Direct Instruction</div>
+      </div>
+      <div class="graphic-area" id="day8-graphic">
+        <canvas id="day8-canvas"></canvas>
+      </div>
+    </div>
+
+    <!-- DAY 9: Lab Stations -->
+    <div class="day-panel" id="panel-9">
+      <div class="day-header">
+        <div class="day-num">Day 9</div>
+        <div class="day-title">Ocean Floor Lab Stations</div>
+        <div class="day-type lab">🧪 Student Lab</div>
+      </div>
+      <div class="graphic-area" id="day9-graphic">
+        <canvas id="day9-bg-canvas" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+        <div class="stations-grid" style="position:relative;z-index:2;">
+          <div class="station-card" onclick="showInfo('Station A: Bathymetric Mapping', 'Using depth data to draw contour maps of the ocean floor. Practice reading sonar returns and translating them into a topographic profile.')">
+            <div class="station-num">Station A</div>
+            <div class="station-name">Bathymetric Mapping</div>
+            <div class="station-desc">Draw ocean floor contours from sonar depth data.</div>
+          </div>
+          <div class="station-card" onclick="showInfo('Station B: Sediment Core Analysis', 'Examine layered sediment samples and identify what each layer tells us about past ocean conditions — temperature, life, volcanic events.')">
+            <div class="station-num">Station B</div>
+            <div class="station-name">Sediment Core Analysis</div>
+            <div class="station-desc">What do the layers of a core tell us about the past?</div>
+          </div>
+          <div class="station-card" onclick="showInfo('Station C: Ocean Chemistry', 'Test water samples with different salinity, temperature, and dissolved gas concentrations. Observe how density changes with each variable.')">
+            <div class="station-num">Station C</div>
+            <div class="station-name">Ocean Chemistry</div>
+            <div class="station-desc">Salinity, density, and dissolved gas experiments.</div>
+          </div>
+          <div class="station-card" onclick="showInfo('Station D: Vent Ecosystem Web', 'Build a food web starting from chemosynthetic bacteria at a hydrothermal vent. How does energy flow without sunlight?')">
+            <div class="station-num">Station D</div>
+            <div class="station-name">Vent Food Web</div>
+            <div class="station-desc">Map energy flow in a sunlight-free ecosystem.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DAY 10: Review / Flashcards -->
+    <div class="day-panel" id="panel-10">
+      <div class="day-header">
+        <div class="day-num">Day 10</div>
+        <div class="day-title">Unit Review &amp; Formative Assessment</div>
+        <div class="day-type">📝 Assessment</div>
+      </div>
+      <div class="graphic-area" id="day10-graphic">
+        <canvas id="day10-bg" style="position:absolute;inset:0;width:100%;height:100%;"></canvas>
+        <div class="flashcard-area" style="position:relative;z-index:2;">
+          <div class="flashcard" id="flashcard" onclick="flipCard()">
+            <div class="flashcard-inner">
+              <div class="flashcard-face flashcard-front">
+                <div class="flashcard-term" id="card-term">Abyssal Plain</div>
+                <div class="flashcard-hint">Click to reveal definition</div>
+              </div>
+              <div class="flashcard-face flashcard-back">
+                <div class="flashcard-def" id="card-def">The vast, flat region of the deep ocean floor, typically at depths of 3,000–6,000 m. Covered by fine sediment and among the flattest terrain on Earth.</div>
+              </div>
+            </div>
+          </div>
+          <div class="card-counter">
+            <button class="card-nav-btn" onclick="prevCard()">← Prev</button>
+            <span id="card-count">1 / 10</span>
+            <button class="card-nav-btn" onclick="nextCard()">Next →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info popup -->
+    <div id="info-popup">
+      <button class="close-popup" onclick="closePopup()">×</button>
+      <h3 id="popup-title"></h3>
+      <p id="popup-body"></p>
+    </div>
+
+  </div><!-- /stage -->
+
+  <!-- Day nav -->
+  <div id="day-nav">
+    <button class="nav-arrow" onclick="prevDay()">‹</button>
+    <button class="day-btn active" onclick="goToDay(1)" id="btn-1"><span class="day-icon">🗺️</span>Day 1</button>
+    <button class="day-btn" onclick="goToDay(2)" id="btn-2"><span class="day-icon">📡</span>Day 2</button>
+    <button class="day-btn" onclick="goToDay(3)" id="btn-3"><span class="day-icon">📋</span>Day 3</button>
+    <button class="day-btn" onclick="goToDay(4)" id="btn-4"><span class="day-icon">🧪</span>Day 4</button>
+    <button class="day-btn" onclick="goToDay(5)" id="btn-5"><span class="day-icon">⚖️</span>Day 5</button>
+    <button class="day-btn" onclick="goToDay(6)" id="btn-6"><span class="day-icon">🌋</span>Day 6</button>
+    <button class="day-btn" onclick="goToDay(7)" id="btn-7"><span class="day-icon">🔬</span>Day 7</button>
+    <button class="day-btn" onclick="goToDay(8)" id="btn-8"><span class="day-icon">🪨</span>Day 8</button>
+    <button class="day-btn" onclick="goToDay(9)" id="btn-9"><span class="day-icon">🏫</span>Day 9</button>
+    <button class="day-btn" onclick="goToDay(10)" id="btn-10"><span class="day-icon">📝</span>Day 10</button>
+    <button class="nav-arrow" onclick="nextDay()">›</button>
+  </div>
+
+</div><!-- /app -->
+
+<!-- TEKS Overlay -->
+<div id="teks-overlay" onclick="closeTEKS(event)">
+  <div class="teks-modal">
+    <button class="teks-close" onclick="closeTEKS()">×</button>
+    <h2>Unit 6 — TEKS Alignment</h2>
+    <div class="teks-item">
+      <div class="teks-code">112.49(c)(10)(A)</div>
+      <div class="teks-text">Analyze and describe the composition and structure of the ocean, including bathymetry, water chemistry, and the ocean floor.</div>
+    </div>
+    <div class="teks-item">
+      <div class="teks-code">112.49(c)(6)(B)</div>
+      <div class="teks-text">Describe how outgassing and comets contributed to the formation of Earth's early hydrosphere.</div>
+    </div>
+    <div class="teks-item">
+      <div class="teks-code">112.49(c)(1)(D)</div>
+      <div class="teks-text">Use tools such as satellite imagery, sonar, and bathymetric maps to investigate Earth's features.</div>
+    </div>
+    <div class="teks-item">
+      <div class="teks-code">112.49(c)(9)(B)</div>
+      <div class="teks-text">Analyze the role of water as a resource and agent in Earth's systems.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+let currentDay = 1;
+const totalDays = 10;
+
+// ============================================================
+// NAVIGATION
+// ============================================================
+function goToDay(n) {
+  document.querySelectorAll('.day-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel-' + n).classList.add('active');
+  document.getElementById('btn-' + n).classList.add('active');
+  currentDay = n;
+  closePopup();
+  initDay(n);
+  document.getElementById('btn-' + n).scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+}
+
+function nextDay() { if (currentDay < totalDays) goToDay(currentDay + 1); }
+function prevDay() { if (currentDay > 1) goToDay(currentDay - 1); }
+
+// ============================================================
+// INFO POPUP
+// ============================================================
+function showInfo(title, body, x, y) {
+  const popup = document.getElementById('info-popup');
+  document.getElementById('popup-title').textContent = title;
+  document.getElementById('popup-body').textContent = body;
+  popup.classList.add('visible');
+  if (x !== undefined) {
+    const stage = document.getElementById('stage');
+    const sr = stage.getBoundingClientRect();
+    let px = x - sr.left;
+    let py = y - sr.top;
+    if (px + 300 > sr.width) px -= 300;
+    if (py + 160 > sr.height) py -= 160;
+    popup.style.left = Math.max(8, px + 16) + 'px';
+    popup.style.top = Math.max(8, py + 16) + 'px';
+  } else {
+    popup.style.left = '50%';
+    popup.style.top = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+  }
+}
+function closePopup() {
+  document.getElementById('info-popup').classList.remove('visible');
+  document.getElementById('info-popup').style.transform = '';
+}
+
+// ============================================================
+// TEKS
+// ============================================================
+function toggleTEKS() { document.getElementById('teks-overlay').classList.add('visible'); }
+function closeTEKS(e) {
+  if (!e || e.target === document.getElementById('teks-overlay') || !e.target) {
+    document.getElementById('teks-overlay').classList.remove('visible');
+  }
+}
+
+// ============================================================
+// FLASHCARD DATA
+// ============================================================
+const vocab = [
+  { term: 'Abyssal Plain', def: 'The vast, flat region of the deep ocean floor, typically 3,000–6,000 m deep. Covered by fine sediment — among the flattest terrain on Earth.' },
+  { term: 'Mid-Ocean Ridge', def: 'An underwater mountain range formed by seafloor spreading. New oceanic crust is created here as magma rises from the mantle.' },
+  { term: 'Trench', def: 'A deep, narrow depression in the ocean floor, formed where one tectonic plate subducts beneath another. The Mariana Trench is 11 km deep.' },
+  { term: 'Continental Shelf', def: 'The gently sloping, submerged edge of a continent. Relatively shallow (< 200 m) and rich in marine life.' },
+  { term: 'Bathymetry', def: 'The measurement and mapping of ocean floor depth. Modern bathymetry uses sonar (sound waves) to build 3D maps of the seafloor.' },
+  { term: 'Hydrothermal Vent', def: 'A fissure on the ocean floor where superheated, mineral-rich water escapes. Hosts unique ecosystems that rely on chemosynthesis, not photosynthesis.' },
+  { term: 'Chemosynthesis', def: 'Energy production using chemical reactions (not sunlight). Bacteria at hydrothermal vents use H₂S to make food — the base of the vent food web.' },
+  { term: 'Salinity', def: 'The concentration of dissolved salts in ocean water, typically ~3.5%. Varies with evaporation, freshwater input, and ocean circulation.' },
+  { term: 'Thermocline', def: 'A layer in the ocean where temperature drops sharply with depth. It separates warm surface water from cold deep water.' },
+  { term: 'Sediment Core', def: 'A cylindrical sample drilled from ocean sediment layers. Each layer represents a different time period — scientists read them like a record of Earth\'s past.' }
+];
+let cardIndex = 0;
+
+function updateCard() {
+  const card = vocab[cardIndex];
+  document.getElementById('card-term').textContent = card.term;
+  document.getElementById('card-def').textContent = card.def;
+  document.getElementById('card-count').textContent = (cardIndex + 1) + ' / ' + vocab.length;
+  document.getElementById('flashcard').classList.remove('flipped');
+}
+function flipCard() { document.getElementById('flashcard').classList.toggle('flipped'); }
+function nextCard() { cardIndex = (cardIndex + 1) % vocab.length; updateCard(); }
+function prevCard() { cardIndex = (cardIndex - 1 + vocab.length) % vocab.length; updateCard(); }
+
+// ============================================================
+// CANVAS HELPERS
+// ============================================================
+function fitCanvas(canvas) {
+  const parent = canvas.parentElement;
+  canvas.width = parent.offsetWidth;
+  canvas.height = parent.offsetHeight;
+}
+
+// ============================================================
+// DAY 1 — Ocean Floor Cross-Section
+// ============================================================
+let day1Anim;
+function initDay1() {
+  cancelAnimationFrame(day1Anim);
+  const canvas = document.getElementById('day1-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Define features
+  const features = [
+    { name: 'Continental Shelf', desc: 'Gently sloping submerged edge of a continent. Shallow water (< 200 m), rich in marine life and resources.', pct: 0.14, depth: 0.18, color: '#1a6b8a' },
+    { name: 'Continental Slope', desc: 'The steeper drop-off from the continental shelf down to the deep ocean floor, typically 1,500–3,500 m deep.', pct: 0.26, depth: 0.42, color: '#0f4f6e' },
+    { name: 'Abyssal Plain', desc: 'Vast flat expanse of the deep ocean, 3,000–6,000 m deep. One of the most remote environments on Earth.', pct: 0.46, depth: 0.72, color: '#082d45' },
+    { name: 'Mid-Ocean Ridge', desc: 'Underwater mountain chain where new oceanic crust forms via seafloor spreading. Magma rises, cools, and pushes plates apart.', pct: 0.65, depth: 0.52, color: '#1a6b4a' },
+    { name: 'Ocean Trench', desc: 'The deepest part of the ocean — formed where oceanic plates subduct. The Mariana Trench reaches 11 km below sea level!', pct: 0.80, depth: 0.88, color: '#0a1f35' },
+    { name: 'Seamount', desc: 'An underwater volcano that rises steeply from the ocean floor but doesn\'t reach the surface. Some become islands over time.', pct: 0.90, depth: 0.58, color: '#3d2b1a' },
+  ];
+
+  // Profile path
+  const profile = [
+    [0, 0.12], [0.1, 0.14], [0.17, 0.18],
+    [0.22, 0.42], [0.28, 0.65], [0.35, 0.72],
+    [0.45, 0.72], [0.55, 0.72], [0.60, 0.65],
+    [0.63, 0.52], [0.67, 0.56], [0.72, 0.72],
+    [0.76, 0.84], [0.80, 0.88], [0.83, 0.84],
+    [0.86, 0.72], [0.88, 0.60], [0.91, 0.58],
+    [0.94, 0.65], [1.0, 0.70]
+  ];
+
+  let particles = [];
+  for (let i = 0; i < 60; i++) {
+    particles.push({
+      x: Math.random() * W, y: Math.random() * H * 0.6 + H * 0.1,
+      vx: (Math.random() - 0.5) * 0.2, vy: -Math.random() * 0.3 - 0.05,
+      alpha: Math.random() * 0.3 + 0.05, r: Math.random() * 1.5 + 0.5
+    });
+  }
+
+  let t = 0;
+  let hoveredFeature = null;
+  const hotspotHitAreas = features.map(f => ({
+    cx: f.pct * W, cy: f.depth * H, r: 20, feature: f
+  }));
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    hoveredFeature = null;
+    for (const hs of hotspotHitAreas) {
+      if (Math.hypot(mx - hs.cx, my - hs.cy) < 24) { hoveredFeature = hs; break; }
+    }
+    canvas.style.cursor = hoveredFeature ? 'pointer' : 'default';
+  };
+  canvas.onclick = (e) => {
+    if (hoveredFeature) showInfo(hoveredFeature.feature.name, hoveredFeature.feature.desc, e.clientX, e.clientY);
+    else closePopup();
+  };
+
+  function draw() {
+    t += 0.008;
+    ctx.clearRect(0, 0, W, H);
+
+    // Water gradient
+    const waterGrad = ctx.createLinearGradient(0, 0, 0, H);
+    waterGrad.addColorStop(0, '#001122');
+    waterGrad.addColorStop(0.4, '#00080f');
+    waterGrad.addColorStop(1, '#000508');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Caustics effect at top
+    for (let i = 0; i < 5; i++) {
+      const cx = (i / 5 + Math.sin(t * 0.7 + i) * 0.08) * W;
+      const grad = ctx.createRadialGradient(cx, H * 0.05, 0, cx, H * 0.05, W * 0.15);
+      grad.addColorStop(0, 'rgba(0,100,180,0.06)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, W, H * 0.3);
+    }
+
+    // Particles
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < 0) { p.y = H * 0.9; p.x = Math.random() * W; }
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(100,200,255,${p.alpha})`;
+      ctx.fill();
+    });
+
+    // Build seafloor path
+    ctx.beginPath();
+    const pts = profile.map(([px, py]) => [px * W, py * H]);
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length - 1; i++) {
+      const mx2 = (pts[i][0] + pts[i + 1][0]) / 2;
+      const my2 = (pts[i][1] + pts[i + 1][1]) / 2;
+      ctx.quadraticCurveTo(pts[i][0], pts[i][1], mx2, my2);
+    }
+    ctx.lineTo(pts[pts.length - 1][0], pts[pts.length - 1][1]);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+
+    const floorGrad = ctx.createLinearGradient(0, H * 0.3, 0, H);
+    floorGrad.addColorStop(0, '#1a4a6a');
+    floorGrad.addColorStop(0.3, '#0d2f45');
+    floorGrad.addColorStop(1, '#040f1a');
+    ctx.fillStyle = floorGrad;
+    ctx.fill();
+
+    // Floor edge line
+    ctx.beginPath();
+    const pts2 = profile.map(([px, py]) => [px * W, py * H]);
+    ctx.moveTo(pts2[0][0], pts2[0][1]);
+    for (let i = 1; i < pts2.length - 1; i++) {
+      const mx2 = (pts2[i][0] + pts2[i + 1][0]) / 2;
+      const my2 = (pts2[i][1] + pts2[i + 1][1]) / 2;
+      ctx.quadraticCurveTo(pts2[i][0], pts2[i][1], mx2, my2);
+    }
+    ctx.lineTo(pts2[pts2.length - 1][0], pts2[pts2.length - 1][1]);
+    ctx.strokeStyle = 'rgba(0,180,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Sea surface shimmer
+    for (let x = 0; x < W; x += 4) {
+      const sy = H * 0.06 + Math.sin(x * 0.015 + t) * 3;
+      ctx.beginPath();
+      ctx.moveTo(x, sy - 1);
+      ctx.lineTo(x + 3, sy - 1);
+      ctx.strokeStyle = `rgba(100,200,255,${0.08 + Math.sin(x * 0.03 + t * 2) * 0.04})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // Hotspot dots
+    features.forEach((f, i) => {
+      const cx = f.pct * W, cy = f.depth * H;
+      const isHovered = hoveredFeature && hoveredFeature.feature === f;
+
+      // Pulse ring
+      const pulse = (t * 1.5 + i * 0.7) % 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 14 + pulse * 14, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,180,255,${0.5 - pulse * 0.5})`;
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Dot
+      ctx.beginPath();
+      ctx.arc(cx, cy, isHovered ? 10 : 7, 0, Math.PI * 2);
+      ctx.fillStyle = isHovered ? '#00b4ff' : 'rgba(0,180,255,0.6)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Label
+      ctx.font = `${isHovered ? 'bold ' : ''}11px Inter`;
+      ctx.fillStyle = isHovered ? '#ffffff' : 'rgba(180,220,255,0.8)';
+      ctx.textAlign = 'center';
+      const labelY = cy < H * 0.4 ? cy + 24 : cy - 16;
+      ctx.fillText(f.name, cx, labelY);
+    });
+
+    day1Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 2 — Sonar Animation
+// ============================================================
+let day2Anim;
+function initDay2() {
+  cancelAnimationFrame(day2Anim);
+  const canvas = document.getElementById('day2-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const floorProfile = [
+    [0,0.5],[0.1,0.52],[0.2,0.55],[0.28,0.7],[0.35,0.72],
+    [0.45,0.72],[0.58,0.6],[0.65,0.5],[0.72,0.65],[0.8,0.78],[0.9,0.75],[1,0.73]
+  ];
+  const revealedPts = [];
+  let shipX = -50, shipSpeed = 0.6;
+  let pings = [];
+  let pingTimer = 0;
+  let t = 0;
+
+  function floorYAt(px) {
+    const pts = floorProfile.map(([x, y]) => [x * W, y * H]);
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (px >= pts[i][0] && px <= pts[i + 1][0]) {
+        const frac = (px - pts[i][0]) / (pts[i + 1][0] - pts[i][0]);
+        return pts[i][1] + frac * (pts[i + 1][1] - pts[i][1]);
+      }
+    }
+    return H * 0.72;
+  }
+
+  function draw() {
+    t += 1;
+    ctx.clearRect(0, 0, W, H);
+
+    // Background water
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#001018');
+    bg.addColorStop(1, '#000508');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Ship moves
+    shipX += shipSpeed;
+    if (shipX > W + 60) { shipX = -60; revealedPts.length = 0; }
+
+    // Emit ping
+    pingTimer++;
+    if (pingTimer > 40) {
+      pingTimer = 0;
+      const fy = floorYAt(shipX);
+      pings.push({ x: shipX, startY: H * 0.08, endY: fy, progress: 0, hit: false, hitY: fy });
+      if (revealedPts.length === 0 || revealedPts[revealedPts.length - 1][0] < shipX - 2) {
+        revealedPts.push([shipX, fy]);
+      }
+    }
+
+    // Draw pings
+    pings.forEach(p => {
+      p.progress += 0.04;
+      if (p.progress > 1) p.hit = true;
+      const y = p.startY + (p.endY - p.startY) * Math.min(p.progress, 1);
+      if (!p.hit) {
+        ctx.beginPath();
+        ctx.arc(p.x, y, 3, 0, Math.PI * 2);
+        ctx.fillStyle = '#00ff88';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.startY);
+        ctx.lineTo(p.x, y);
+        ctx.strokeStyle = 'rgba(0,255,136,0.2)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      } else {
+        const spread = (p.progress - 1) * 30;
+        ctx.beginPath();
+        ctx.arc(p.x, p.endY, spread, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,255,136,${0.4 - (p.progress - 1) * 0.4})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    });
+    pings = pings.filter(p => p.progress < 1 + 0.8);
+
+    // Revealed seafloor
+    if (revealedPts.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(revealedPts[0][0], revealedPts[0][1]);
+      revealedPts.forEach(([rx, ry]) => ctx.lineTo(rx, ry));
+      ctx.strokeStyle = '#00b4ff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
+    // Hidden seafloor (dim)
+    ctx.beginPath();
+    const fp = floorProfile.map(([x, y]) => [x * W, y * H]);
+    ctx.moveTo(fp[0][0], fp[0][1]);
+    for (let i = 1; i < fp.length; i++) ctx.lineTo(fp[i][0], fp[i][1]);
+    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    // Ship
+    ctx.fillStyle = '#cce8ff';
+    ctx.beginPath();
+    ctx.moveTo(shipX - 20, H * 0.08);
+    ctx.lineTo(shipX + 20, H * 0.08);
+    ctx.lineTo(shipX + 15, H * 0.1);
+    ctx.lineTo(shipX - 15, H * 0.1);
+    ctx.closePath();
+    ctx.fill();
+
+    // Label
+    ctx.font = '11px Inter';
+    ctx.fillStyle = 'rgba(100,180,255,0.6)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Research vessel emitting sonar pings', 20, H - 20);
+    ctx.fillStyle = '#00b4ff';
+    ctx.fillText('▬ Mapped seafloor', 20, H - 36);
+
+    day2Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 3 — Labeled cross-section diagram
+// ============================================================
+let day3Anim;
+function initDay3() {
+  cancelAnimationFrame(day3Anim);
+  const canvas = document.getElementById('day3-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const labels = [
+    { name: 'Continental Shelf', x: 0.13, y: 0.22, tx: 0.13, ty: 0.08 },
+    { name: 'Continental Slope', x: 0.24, y: 0.4, tx: 0.18, ty: 0.3 },
+    { name: 'Abyssal Plain', x: 0.5, y: 0.72, tx: 0.5, ty: 0.86 },
+    { name: 'Mid-Ocean Ridge', x: 0.63, y: 0.52, tx: 0.68, ty: 0.38 },
+    { name: 'Trench', x: 0.8, y: 0.88, tx: 0.82, ty: 0.74 },
+    { name: 'Seamount', x: 0.9, y: 0.6, tx: 0.93, ty: 0.46 },
+  ];
+
+  const profile = [
+    [0, 0.12],[0.1, 0.14],[0.17, 0.18],[0.22, 0.42],
+    [0.28, 0.65],[0.35, 0.72],[0.55, 0.72],[0.60, 0.65],
+    [0.63, 0.52],[0.67, 0.56],[0.72, 0.72],[0.76, 0.84],
+    [0.80, 0.88],[0.83, 0.84],[0.86, 0.72],[0.88, 0.60],
+    [0.91, 0.58],[0.94, 0.65],[1.0, 0.70]
+  ];
+
+  let t = 0;
+  let hoveredLabel = null;
+  canvas.onmousemove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const mx = (e.clientX - r.left), my = (e.clientY - r.top);
+    hoveredLabel = null;
+    labels.forEach(l => {
+      if (Math.hypot(mx - l.tx * W, my - l.ty * H) < 40) hoveredLabel = l;
+    });
+    canvas.style.cursor = hoveredLabel ? 'pointer' : 'default';
+  };
+  canvas.onclick = (e) => {
+    if (hoveredLabel) showInfo(hoveredLabel.name, getFeatureDesc(hoveredLabel.name), e.clientX, e.clientY);
+    else closePopup();
+  };
+
+  function getFeatureDesc(name) {
+    const descs = {
+      'Continental Shelf': 'Gently sloping submerged edge of a continent. Shallow water (< 200 m), rich in marine life and resources.',
+      'Continental Slope': 'The steeper drop-off from the continental shelf down to the deep ocean floor.',
+      'Abyssal Plain': 'Vast flat expanse of the deep ocean, 3,000–6,000 m deep. Covered by fine sediment.',
+      'Mid-Ocean Ridge': 'Underwater mountain chain where new oceanic crust forms via seafloor spreading.',
+      'Trench': 'The deepest parts of the ocean, formed where oceanic plates subduct. Can reach 11 km deep!',
+      'Seamount': 'An underwater volcano that rises steeply from the ocean floor but doesn\'t reach the surface.',
+    };
+    return descs[name] || '';
+  }
+
+  function draw() {
+    t += 0.01;
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#001018');
+    bg.addColorStop(1, '#000508');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Water sheen
+    ctx.fillStyle = 'rgba(0,80,140,0.08)';
+    ctx.fillRect(0, 0, W, H * 0.65);
+
+    // Floor
+    ctx.beginPath();
+    const pts = profile.map(([px, py]) => [px * W, py * H]);
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    const fg2 = ctx.createLinearGradient(0, H * 0.3, 0, H);
+    fg2.addColorStop(0, '#1a4a6a');
+    fg2.addColorStop(1, '#040f1a');
+    ctx.fillStyle = fg2;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,180,255,0.4)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Labels with leader lines
+    labels.forEach(l => {
+      const isHov = hoveredLabel === l;
+      const lx = l.x * W, ly = l.y * H;
+      const tx = l.tx * W, ty = l.ty * H;
+
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(tx, ty);
+      ctx.strokeStyle = isHov ? 'rgba(0,180,255,0.9)' : 'rgba(0,180,255,0.4)';
+      ctx.lineWidth = isHov ? 1.5 : 1;
+      ctx.setLineDash([3, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath();
+      ctx.arc(lx, ly, isHov ? 7 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = isHov ? '#00b4ff' : 'rgba(0,180,255,0.6)';
+      ctx.fill();
+
+      const boxW = ctx.measureText(l.name).width + 20;
+      ctx.fillStyle = isHov ? 'rgba(0,30,50,0.95)' : 'rgba(0,20,35,0.85)';
+      ctx.beginPath();
+      ctx.roundRect(tx - boxW / 2, ty - 11, boxW, 22, 6);
+      ctx.fill();
+      ctx.strokeStyle = isHov ? 'rgba(0,180,255,0.7)' : 'rgba(0,180,255,0.25)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      ctx.font = `${isHov ? 'bold ' : ''}11px "Space Grotesk", sans-serif`;
+      ctx.fillStyle = isHov ? '#ffffff' : 'rgba(180,220,255,0.9)';
+      ctx.textAlign = 'center';
+      ctx.fillText(l.name, tx, ty + 4);
+    });
+
+    ctx.font = '11px Inter';
+    ctx.fillStyle = 'rgba(100,180,255,0.5)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Click any label to learn more', 20, H - 16);
+
+    day3Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 4 — Ocean Chemistry Water Column
+// ============================================================
+let day4Anim;
+function initDay4() {
+  cancelAnimationFrame(day4Anim);
+  const canvas = document.getElementById('day4-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const zones = [
+    { name: 'Sunlight Zone', depth: '0–200 m', color: '#003a6e', textColor: '#7dd3fc',
+      facts: ['Warm, well-lit', 'O₂ rich from photosynthesis', 'Most marine life here', 'Avg salinity ~3.5%'] },
+    { name: 'Twilight Zone', depth: '200–1,000 m', color: '#00213f', textColor: '#38bdf8',
+      facts: ['Temperature drops sharply', 'Thermocline present', 'Less O₂, more nutrients', 'Bioluminescence common'] },
+    { name: 'Midnight Zone', depth: '1,000–4,000 m', color: '#000f20', textColor: '#0ea5e9',
+      facts: ['Near-freezing (1–4°C)', 'High pressure', 'NO sunlight', 'High CO₂ & nutrients'] },
+    { name: 'Abyssal Zone', depth: '4,000–6,000 m', color: '#00060f', textColor: '#0284c7',
+      facts: ['Coldest water', 'Highest pressure', 'Low O₂', 'Sparse but specialized life'] },
+  ];
+
+  let t = 0;
+  let particles = [];
+  for (let i = 0; i < 80; i++) {
+    particles.push({
+      x: Math.random() * W, y: Math.random() * H,
+      vx: (Math.random() - 0.5) * 0.15,
+      vy: -Math.random() * 0.2 - 0.02,
+      r: Math.random() * 1.5 + 0.3,
+      alpha: Math.random() * 0.4 + 0.05
+    });
+  }
+
+  function draw() {
+    t += 0.008;
+    ctx.clearRect(0, 0, W, H);
+
+    const colW = Math.min(W * 0.35, 260);
+    const colX = W * 0.08;
+    const zoneH = H / zones.length;
+
+    zones.forEach((z, i) => {
+      const zy = i * zoneH;
+      const grad = ctx.createLinearGradient(0, zy, 0, zy + zoneH);
+      grad.addColorStop(0, z.color);
+      grad.addColorStop(1, zones[Math.min(i + 1, zones.length - 1)].color);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, zy, colX + colW, zoneH);
+    });
+
+    // Particles
+    particles.forEach(p => {
+      const depth_frac = p.y / H;
+      const alpha = p.alpha * (1 - depth_frac * 0.8);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(100,200,255,${alpha})`;
+      ctx.fill();
+      p.x += p.vx; p.y += p.vy;
+      if (p.y < 0) { p.y = H; p.x = Math.random() * W; }
+    });
+
+    zones.forEach((z, i) => {
+      const zy = i * zoneH;
+
+      // Zone divider
+      ctx.beginPath();
+      ctx.moveTo(0, zy);
+      ctx.lineTo(colX + colW, zy);
+      ctx.strokeStyle = 'rgba(0,180,255,0.15)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Zone name
+      ctx.font = 'bold 13px "Space Grotesk", sans-serif';
+      ctx.fillStyle = z.textColor;
+      ctx.textAlign = 'left';
+      ctx.fillText(z.name, colX + 8, zy + 20);
+
+      ctx.font = '10px Inter';
+      ctx.fillStyle = 'rgba(100,160,200,0.7)';
+      ctx.fillText(z.depth, colX + 8, zy + 34);
+
+      z.facts.forEach((fact, fi) => {
+        ctx.font = '10px Inter';
+        ctx.fillStyle = 'rgba(180,210,240,0.75)';
+        ctx.fillText('· ' + fact, colX + 8, zy + 50 + fi * 15);
+      });
+    });
+
+    // Depth ruler
+    const rulerX = colX + colW + 20;
+    ctx.strokeStyle = 'rgba(0,180,255,0.3)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rulerX, 10);
+    ctx.lineTo(rulerX, H - 10);
+    ctx.stroke();
+
+    const depths = ['0 m', '200 m', '1,000 m', '4,000 m', '6,000 m'];
+    const depthFracs = [0, 0.25, 0.5, 0.75, 1];
+    depths.forEach((d, i) => {
+      const dy = depthFracs[i] * (H - 20) + 10;
+      ctx.beginPath();
+      ctx.moveTo(rulerX - 5, dy);
+      ctx.lineTo(rulerX + 5, dy);
+      ctx.stroke();
+      ctx.font = '10px Inter';
+      ctx.fillStyle = 'rgba(100,180,255,0.6)';
+      ctx.textAlign = 'left';
+      ctx.fillText(d, rulerX + 8, dy + 4);
+    });
+
+    // Right side — chemistry bars
+    const barX = rulerX + 80;
+    const barMaxW = Math.max(50, W - barX - 40);
+    const chemData = [
+      { label: 'Salinity', values: [35, 35, 35, 35], color: '#38bdf8' },
+      { label: 'Temp (°C)', values: [25, 8, 2, 1], max: 30, color: '#f97316' },
+      { label: 'O₂ (ml/L)', values: [7, 4, 3, 2], max: 8, color: '#22c55e' },
+    ];
+
+    chemData.forEach((chem, ci) => {
+      ctx.font = 'bold 10px "Space Grotesk", sans-serif';
+      ctx.fillStyle = chem.color;
+      ctx.textAlign = 'left';
+      ctx.fillText(chem.label, barX, 18 + ci * 22);
+
+      chem.values.forEach((val, vi) => {
+        const by = vi * zoneH + 24 + ci * 2;
+        const bw = (val / (chem.max || 40)) * barMaxW;
+        ctx.fillStyle = chem.color + '33';
+        ctx.beginPath();
+        ctx.roundRect(barX, by, barMaxW, 10, 3);
+        ctx.fill();
+        ctx.fillStyle = chem.color;
+        ctx.beginPath();
+        ctx.roundRect(barX, by, bw, 10, 3);
+        ctx.fill();
+        ctx.font = '9px Inter';
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.fillText(val + (chem.label === 'Salinity' ? '‰' : ''), barX + bw + 4, by + 8);
+      });
+    });
+
+    day4Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 5 — Early vs Modern comparison (canvas split)
+// ============================================================
+let day5Anim;
+let sliderPct = 0.5;
+let isDragging5 = false;
+
+function initDay5() {
+  cancelAnimationFrame(day5Anim);
+  const canvas = document.getElementById('day5-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const graphic = document.getElementById('day5-graphic');
+  graphic.onmousedown = (e) => { isDragging5 = true; };
+  window.onmouseup = () => { isDragging5 = false; };
+  graphic.onmousemove = (e) => {
+    if (!isDragging5) return;
+    const r = canvas.getBoundingClientRect();
+    sliderPct = Math.max(0.05, Math.min(0.95, (e.clientX - r.left) / W));
+  };
+
+  const leftLabel = document.getElementById('compare-label-left');
+  const rightLabel = document.getElementById('compare-label-right');
+
+  let t = 0;
+  let lParticles = Array.from({ length: 30 }, () => ({
+    x: Math.random(), y: Math.random(), r: Math.random() * 2 + 0.5,
+    vx: (Math.random() - 0.5) * 0.001, vy: -Math.random() * 0.002 - 0.001
+  }));
+  let rParticles = Array.from({ length: 30 }, () => ({
+    x: Math.random(), y: Math.random(), r: Math.random() * 1.5 + 0.3,
+    vx: (Math.random() - 0.5) * 0.001, vy: -Math.random() * 0.002 - 0.001
+  }));
+
+  function draw() {
+    t += 0.01;
+    ctx.clearRect(0, 0, W, H);
+
+    const sp = sliderPct * W;
+
+    // LEFT — Early Earth ocean (hot, volcanic, acidic reddish)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, sp, H);
+    ctx.clip();
+
+    const lgL = ctx.createLinearGradient(0, 0, 0, H);
+    lgL.addColorStop(0, '#1a0a00');
+    lgL.addColorStop(0.5, '#3d1500');
+    lgL.addColorStop(1, '#0f0500');
+    ctx.fillStyle = lgL;
+    ctx.fillRect(0, 0, sp, H);
+
+    // Volcano silhouette
+    ctx.beginPath();
+    ctx.moveTo(sp * 0.3 - 60, H);
+    ctx.lineTo(sp * 0.3, H * 0.35);
+    ctx.lineTo(sp * 0.3 + 60, H);
+    ctx.fillStyle = '#1a0800';
+    ctx.fill();
+
+    // Lava glow
+    const lavGrad = ctx.createRadialGradient(sp * 0.3, H * 0.35, 0, sp * 0.3, H * 0.35, 80);
+    lavGrad.addColorStop(0, 'rgba(255,100,0,0.4)');
+    lavGrad.addColorStop(1, 'transparent');
+    ctx.fillStyle = lavGrad;
+    ctx.fill();
+
+    // Toxic particles (red/orange)
+    lParticles.forEach(p => {
+      const px = p.x * sp, py = p.y * H;
+      ctx.beginPath();
+      ctx.arc(px, py, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(255,80,0,${0.3 + Math.sin(t * 2 + p.x * 10) * 0.1})`;
+      ctx.fill();
+      p.y -= 0.002;
+      if (p.y < 0) p.y = 1;
+    });
+
+    ctx.font = 'bold 11px Inter';
+    ctx.fillStyle = 'rgba(255,120,40,0.7)';
+    ctx.textAlign = 'center';
+    const facts = ['Highly acidic (pH ~5.5)', 'Very hot (> 80°C)', 'No free oxygen', 'CO₂ & N₂ atmosphere', 'Constant meteor impacts'];
+    facts.forEach((f, i) => {
+      ctx.fillText(f, sp * 0.5, H * 0.5 + i * 18);
+    });
+
+    ctx.restore();
+
+    // RIGHT — Modern ocean (cool blue)
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(sp, 0, W - sp, H);
+    ctx.clip();
+
+    const lgR = ctx.createLinearGradient(0, 0, 0, H);
+    lgR.addColorStop(0, '#001829');
+    lgR.addColorStop(0.5, '#002540');
+    lgR.addColorStop(1, '#000c18');
+    ctx.fillStyle = lgR;
+    ctx.fillRect(sp, 0, W - sp, H);
+
+    // Fish silhouettes
+    for (let f = 0; f < 4; f++) {
+      const fx = sp + (W - sp) * (0.2 + f * 0.18) + Math.sin(t * 0.5 + f) * 20;
+      const fy = H * (0.3 + f * 0.12);
+      ctx.beginPath();
+      ctx.ellipse(fx, fy, 14, 6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,180,255,0.15)';
+      ctx.fill();
+    }
+
+    rParticles.forEach(p => {
+      const px = sp + p.x * (W - sp), py = p.y * H;
+      ctx.beginPath();
+      ctx.arc(px, py, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(100,200,255,${0.15 + Math.sin(t + p.x * 5) * 0.07})`;
+      ctx.fill();
+      p.y -= 0.002;
+      if (p.y < 0) p.y = 1;
+    });
+
+    ctx.font = 'bold 11px Inter';
+    ctx.fillStyle = 'rgba(100,200,255,0.7)';
+    ctx.textAlign = 'center';
+    const rfacts = ['Avg pH 8.1', 'Avg temp ~17°C (surface)', '21% O₂ atmosphere', 'Rich marine biodiversity', 'Stable salinity ~3.5%'];
+    rfacts.forEach((f, i) => {
+      ctx.fillText(f, sp + (W - sp) * 0.5, H * 0.5 + i * 18);
+    });
+
+    ctx.restore();
+
+    // Divider line
+    ctx.beginPath();
+    ctx.moveTo(sp, 0);
+    ctx.lineTo(sp, H);
+    ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Handle
+    ctx.beginPath();
+    ctx.arc(sp, H / 2, 18, 0, Math.PI * 2);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+    ctx.font = 'bold 12px Inter';
+    ctx.fillStyle = '#000';
+    ctx.textAlign = 'center';
+    ctx.fillText('⟺', sp, H / 2 + 4);
+
+    // Update labels
+    leftLabel.style.left = Math.min(sp * 0.5 - 60, sp - 130) + 'px';
+    leftLabel.style.top = '20px';
+    rightLabel.style.right = Math.min((W - sp) * 0.5 - 60, W - sp - 130) + 'px';
+    rightLabel.style.top = '20px';
+
+    day5Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 6 — Hydrothermal Vents
+// ============================================================
+let day6Anim;
+function initDay6() {
+  cancelAnimationFrame(day6Anim);
+  const canvas = document.getElementById('day6-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const vents = [
+    { x: W * 0.3, floorY: H * 0.78, label: 'Black Smoker',
+      desc: 'Superheated water (300–400°C) rich in sulfide minerals. The "smoke" is mineral particles that precipitate as hot water meets cold.' },
+    { x: W * 0.6, floorY: H * 0.75, label: 'White Smoker',
+      desc: 'Cooler (< 300°C), emits lighter minerals like barium and calcium. Hosts unique shrimp, crabs, and tube worms.' },
+  ];
+
+  let particles = [];
+  function emitVent(vent) {
+    for (let i = 0; i < 2; i++) {
+      particles.push({
+        x: vent.x + (Math.random() - 0.5) * 10,
+        y: vent.floorY - 10,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: -(Math.random() * 2 + 0.5),
+        alpha: 0.6, life: 1,
+        color: vent.label === 'Black Smoker' ? '50,30,20' : '180,180,160',
+      });
+    }
+  }
+
+  let creatures = [
+    { x: W * 0.42, y: H * 0.72, vx: 0.3, label: 'Tube Worm', size: 20 },
+    { x: W * 0.55, y: H * 0.65, vx: -0.4, label: 'Vent Shrimp', size: 10 },
+    { x: W * 0.25, y: H * 0.6, vx: 0.5, label: 'Yeti Crab', size: 14 },
+  ];
+
+  let t = 0;
+  let hoveredVent = null;
+
+  canvas.onmousemove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    hoveredVent = null;
+    vents.forEach(v => {
+      if (Math.hypot(mx - v.x, my - v.floorY) < 30) hoveredVent = v;
+    });
+    canvas.style.cursor = hoveredVent ? 'pointer' : 'default';
+  };
+  canvas.onclick = (e) => {
+    if (hoveredVent) showInfo(hoveredVent.label, hoveredVent.desc, e.clientX, e.clientY);
+    else closePopup();
+  };
+
+  function draw() {
+    t += 0.016;
+    ctx.clearRect(0, 0, W, H);
+
+    // Deep water bg
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#000810');
+    bg.addColorStop(1, '#000306');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Floor
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.8);
+    for (let x = 0; x <= W; x += 20) {
+      ctx.lineTo(x, H * 0.78 + Math.sin(x * 0.02) * 10);
+    }
+    ctx.lineTo(W, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    const fgrad = ctx.createLinearGradient(0, H * 0.78, 0, H);
+    fgrad.addColorStop(0, '#1a1008');
+    fgrad.addColorStop(1, '#050303');
+    ctx.fillStyle = fgrad;
+    ctx.fill();
+
+    // Emit particles
+    vents.forEach(v => emitVent(v));
+
+    // Draw particles
+    particles.forEach(p => {
+      p.x += p.vx * 0.5;
+      p.y += p.vy * 0.5;
+      p.vx += (Math.random() - 0.5) * 0.1;
+      p.alpha -= 0.008;
+      p.life -= 0.008;
+      const r2 = 3 + (1 - p.life) * 8;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r2, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+      ctx.fill();
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    // Draw vents
+    vents.forEach(v => {
+      const isHov = hoveredVent === v;
+      // Vent opening glow
+      const vglow = ctx.createRadialGradient(v.x, v.floorY, 0, v.x, v.floorY, 40);
+      vglow.addColorStop(0, v.label === 'Black Smoker' ? 'rgba(255,100,0,0.3)' : 'rgba(200,200,160,0.2)');
+      vglow.addColorStop(1, 'transparent');
+      ctx.fillStyle = vglow;
+      ctx.fillRect(v.x - 40, v.floorY - 40, 80, 80);
+
+      // Vent chimney
+      ctx.beginPath();
+      ctx.moveTo(v.x - 12, v.floorY + 5);
+      ctx.lineTo(v.x - 8, v.floorY - 20);
+      ctx.lineTo(v.x + 8, v.floorY - 20);
+      ctx.lineTo(v.x + 12, v.floorY + 5);
+      ctx.fillStyle = isHov ? '#3d2010' : '#251508';
+      ctx.fill();
+
+      // Label
+      ctx.font = `${isHov ? 'bold ' : ''}11px "Space Grotesk", sans-serif`;
+      ctx.fillStyle = isHov ? '#ffffff' : 'rgba(200,160,100,0.7)';
+      ctx.textAlign = 'center';
+      ctx.fillText(v.label, v.x, v.floorY + 24);
+      if (isHov) {
+        ctx.font = '10px Inter';
+        ctx.fillStyle = 'rgba(255,180,80,0.6)';
+        ctx.fillText('Click to learn more', v.x, v.floorY + 38);
+      }
+    });
+
+    // Creatures
+    creatures.forEach(c => {
+      c.x += c.vx;
+      if (c.x < 0 || c.x > W) c.vx *= -1;
+      ctx.beginPath();
+      ctx.ellipse(c.x, c.y + Math.sin(t + c.x * 0.01) * 3, c.size, c.size * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,200,180,0.2)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(0,255,200,0.4)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.font = '9px Inter';
+      ctx.fillStyle = 'rgba(0,255,200,0.4)';
+      ctx.textAlign = 'center';
+      ctx.fillText(c.label, c.x, c.y - c.size - 2);
+    });
+
+    // Bioluminescence dots
+    for (let i = 0; i < 3; i++) {
+      const bx = W * 0.1 + i * W * 0.3 + Math.sin(t * 0.3 + i) * 20;
+      const by = H * 0.4 + Math.cos(t * 0.4 + i * 1.5) * 30;
+      const bglow = ctx.createRadialGradient(bx, by, 0, bx, by, 8);
+      bglow.addColorStop(0, 'rgba(0,255,200,0.6)');
+      bglow.addColorStop(1, 'transparent');
+      ctx.fillStyle = bglow;
+      ctx.beginPath();
+      ctx.arc(bx, by, 8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    day6Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 7 — Ambient Research Background
+// ============================================================
+let day7Anim;
+function initDay7() {
+  cancelAnimationFrame(day7Anim);
+  const canvas = document.getElementById('day7-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  // Slow ambient — single vent ecosystem, no labels, atmospheric
+  let particles = [];
+  let fishSchool = Array.from({ length: 8 }, (_, i) => ({
+    x: Math.random() * W, y: H * 0.3 + Math.random() * H * 0.3,
+    vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.1,
+    phase: Math.random() * Math.PI * 2
+  }));
+
+  let t = 0;
+  function draw() {
+    t += 0.005;
+    ctx.clearRect(0, 0, W, H);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#000508');
+    bg.addColorStop(1, '#000204');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Floor
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.82);
+    for (let x = 0; x <= W; x += 30) ctx.lineTo(x, H * 0.80 + Math.sin(x * 0.015) * 12);
+    ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath();
+    ctx.fillStyle = '#0a0804'; ctx.fill();
+
+    // Single central vent
+    const ventX = W / 2;
+    // Slow vent plume
+    for (let i = 0; i < 2; i++) {
+      particles.push({
+        x: ventX + (Math.random() - 0.5) * 8, y: H * 0.78,
+        vx: (Math.random() - 0.5) * 0.3, vy: -(Math.random() * 0.6 + 0.2),
+        alpha: 0.3, life: 1
+      });
+    }
+    particles.forEach(p => {
+      p.x += p.vx * 0.3; p.y += p.vy * 0.3;
+      p.vx += (Math.random() - 0.5) * 0.05;
+      p.alpha -= 0.004; p.life -= 0.004;
+      const r = 2 + (1 - p.life) * 20;
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(60,40,20,${p.alpha})`; ctx.fill();
+    });
+    particles = particles.filter(p => p.life > 0);
+
+    // Vent glow
+    const vg = ctx.createRadialGradient(ventX, H * 0.78, 0, ventX, H * 0.78, 60);
+    vg.addColorStop(0, 'rgba(255,80,0,0.2)'); vg.addColorStop(1, 'transparent');
+    ctx.fillStyle = vg; ctx.fillRect(ventX - 60, H * 0.68, 120, 80);
+
+    // Tube worms swaying
+    for (let i = -2; i <= 2; i++) {
+      const wx = ventX + i * 22;
+      const sway = Math.sin(t * 0.8 + i * 0.5) * 6;
+      ctx.beginPath();
+      ctx.moveTo(wx, H * 0.78);
+      ctx.quadraticCurveTo(wx + sway, H * 0.68, wx + sway * 1.5, H * 0.6);
+      ctx.strokeStyle = `rgba(200,80,80,${0.3 + Math.abs(i) * 0.05})`;
+      ctx.lineWidth = 2 + Math.abs(i) * 0.3;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(wx + sway * 1.5, H * 0.6, 5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,100,100,0.4)'; ctx.fill();
+    }
+
+    // Fish school
+    fishSchool.forEach((f, i) => {
+      f.x += f.vx; f.y += f.vy + Math.sin(t * 0.5 + f.phase) * 0.15;
+      if (f.x < -20) f.x = W + 20;
+      if (f.x > W + 20) f.x = -20;
+      f.y = Math.max(H * 0.2, Math.min(H * 0.7, f.y));
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.scale(f.vx > 0 ? 1 : -1, 1);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 10, 4, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,180,200,0.15)';
+      ctx.fill();
+      ctx.restore();
+    });
+
+    // Bioluminescent pulses
+    for (let b = 0; b < 5; b++) {
+      const bx = (b / 5) * W + Math.sin(t * 0.2 + b * 1.3) * 30;
+      const by = H * 0.25 + Math.cos(t * 0.3 + b) * 50;
+      const pulse = (Math.sin(t * 1.2 + b * 2) + 1) / 2;
+      const gr = ctx.createRadialGradient(bx, by, 0, bx, by, 10);
+      gr.addColorStop(0, `rgba(0,255,180,${pulse * 0.4})`);
+      gr.addColorStop(1, 'transparent');
+      ctx.fillStyle = gr;
+      ctx.beginPath(); ctx.arc(bx, by, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    day7Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 8 — Sediment Core drill-down
+// ============================================================
+let day8Anim;
+function initDay8() {
+  cancelAnimationFrame(day8Anim);
+  const canvas = document.getElementById('day8-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+
+  const layers = [
+    { name: 'Recent Sediment', age: '0–10,000 yrs', color: '#c8b89a', info: 'Fine clay and biological remains from modern organisms. Contains microplastics in the most recent layers.' },
+    { name: 'Foram Layer', age: '10k–100k yrs', color: '#d4a96a', info: 'Rich in foraminifera shells. Oxygen isotope ratios here reveal past ocean temperatures.' },
+    { name: 'Ash Layer', age: '~74,000 yrs', color: '#888888', info: 'Volcanic ash from the Toba supervolcano eruption — a global marker layer visible in cores worldwide.' },
+    { name: 'Glacial Sediment', age: '100k–1M yrs', color: '#7a9b8a', info: 'Coarser sediment carried by glacial meltwater. Indicates cooler global temperatures and sea level changes.' },
+    { name: 'Calcareous Ooze', age: '1–50M yrs', color: '#c4a060', info: 'Calcium carbonate from ancient marine organisms. Tells us about past ocean chemistry and CO₂ levels.' },
+    { name: 'Basaltic Crust', age: '> 50M yrs', color: '#3a3030', info: 'The ocean crust itself — igneous basalt formed at mid-ocean ridges. The bottom of the drill record.' },
+  ];
+
+  let t = 0;
+  let drillY = -20;
+  let drillReveal = 0;
+  let hoveredLayer = null;
+
+  const coreX = W * 0.42;
+  const coreW = 70;
+  const coreTop = H * 0.1;
+  const coreBottom = H * 0.9;
+  const coreH = coreBottom - coreTop;
+  const lh = coreH / layers.length;
+
+  canvas.onmousemove = (e) => {
+    const r = canvas.getBoundingClientRect();
+    const my = e.clientY - r.top;
+    hoveredLayer = null;
+    layers.forEach((l, i) => {
+      const ly = coreTop + i * lh;
+      if (my >= ly && my < ly + lh) hoveredLayer = { layer: l, index: i };
+    });
+    canvas.style.cursor = hoveredLayer ? 'pointer' : 'default';
+  };
+  canvas.onclick = (e) => {
+    if (hoveredLayer) showInfo(hoveredLayer.layer.name, hoveredLayer.layer.info, e.clientX, e.clientY);
+    else closePopup();
+  };
+
+  function draw() {
+    t += 0.015;
+    ctx.clearRect(0, 0, W, H);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#020b18');
+    bg.addColorStop(1, '#000508');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+
+    // Animated drill
+    drillY += 0.6;
+    if (drillY > coreBottom + 40) drillY = -20;
+    drillReveal = Math.max(drillReveal, Math.min(1, (drillY - coreTop) / coreH));
+
+    // Drill bit
+    if (drillY < coreBottom) {
+      ctx.beginPath();
+      ctx.rect(coreX + coreW / 2 - 4, drillY - 60, 8, 60);
+      ctx.fillStyle = 'rgba(180,180,200,0.6)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(coreX + coreW / 2 - 10, drillY);
+      ctx.lineTo(coreX + coreW / 2 + 10, drillY);
+      ctx.lineTo(coreX + coreW / 2, drillY + 15);
+      ctx.closePath();
+      ctx.fillStyle = '#c0a040';
+      ctx.fill();
+    }
+
+    // Core outline
+    ctx.strokeStyle = 'rgba(0,180,255,0.3)';
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(coreX, coreTop, coreW, coreH);
+
+    // Layers
+    layers.forEach((l, i) => {
+      const ly = coreTop + i * lh;
+      const revH = Math.min(lh, Math.max(0, drillReveal * coreH - i * lh));
+      if (revH <= 0) return;
+
+      const isHov = hoveredLayer && hoveredLayer.index === i;
+
+      ctx.fillStyle = isHov ? l.color + 'dd' : l.color + '99';
+      ctx.fillRect(coreX, ly, coreW, revH);
+
+      if (isHov) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(coreX, ly, coreW, Math.min(revH, lh));
+      }
+
+      if (revH >= lh * 0.6) {
+        ctx.font = isHov ? 'bold 10px Inter' : '9px Inter';
+        ctx.fillStyle = isHov ? '#ffffff' : 'rgba(255,255,255,0.7)';
+        ctx.textAlign = 'center';
+        ctx.fillText(l.name, coreX + coreW / 2, ly + lh * 0.5 - 4);
+        ctx.font = '8px Inter';
+        ctx.fillStyle = 'rgba(255,255,255,0.45)';
+        ctx.fillText(l.age, coreX + coreW / 2, ly + lh * 0.5 + 10);
+      }
+
+      // Leader lines to right
+      if (revH >= lh * 0.4) {
+        const lineY = ly + Math.min(revH, lh) * 0.5;
+        ctx.beginPath();
+        ctx.moveTo(coreX + coreW, lineY);
+        ctx.lineTo(coreX + coreW + 20, lineY);
+        ctx.strokeStyle = isHov ? 'rgba(0,180,255,0.6)' : 'rgba(0,180,255,0.2)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([2, 3]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        ctx.font = isHov ? 'bold 10px Inter' : '9px Inter';
+        ctx.fillStyle = isHov ? 'rgba(200,220,255,0.9)' : 'rgba(100,160,200,0.6)';
+        ctx.textAlign = 'left';
+        ctx.fillText(l.name, coreX + coreW + 25, lineY + 3);
+      }
+    });
+
+    // Click hint
+    ctx.font = '10px Inter';
+    ctx.fillStyle = 'rgba(100,180,255,0.4)';
+    ctx.textAlign = 'left';
+    ctx.fillText('Click a layer for more info', 20, H - 16);
+
+    // Depth ruler on left
+    const rulerX = coreX - 30;
+    ctx.strokeStyle = 'rgba(0,180,255,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(rulerX, coreTop);
+    ctx.lineTo(rulerX, coreBottom);
+    ctx.stroke();
+
+    const depthLabels = ['0', '0.5 m', '1 m', '2 m', '5 m', '10 m+'];
+    depthLabels.forEach((d, i) => {
+      const dy = coreTop + (i / (depthLabels.length - 1)) * coreH;
+      ctx.beginPath();
+      ctx.moveTo(rulerX - 5, dy);
+      ctx.lineTo(rulerX + 5, dy);
+      ctx.strokeStyle = 'rgba(0,180,255,0.3)';
+      ctx.stroke();
+      ctx.font = '9px Inter';
+      ctx.fillStyle = 'rgba(100,180,255,0.5)';
+      ctx.textAlign = 'right';
+      ctx.fillText(d, rulerX - 7, dy + 3);
+    });
+
+    day8Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 9 — Station background (animated)
+// ============================================================
+let day9Anim;
+function initDay9() {
+  cancelAnimationFrame(day9Anim);
+  const canvas = document.getElementById('day9-bg-canvas');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  let t = 0;
+  let particles = [];
+  for (let i = 0; i < 40; i++) particles.push({ x: Math.random() * W, y: Math.random() * H, r: Math.random() + 0.3, alpha: Math.random() * 0.3 });
+  function draw() {
+    t += 0.005;
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#020b18'); bg.addColorStop(1, '#000508');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    particles.forEach(p => {
+      p.alpha = 0.05 + Math.abs(Math.sin(t * 0.5 + p.x * 0.01)) * 0.15;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(100,200,255,${p.alpha})`; ctx.fill();
+    });
+    day9Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// DAY 10 — Review background
+// ============================================================
+let day10Anim;
+function initDay10() {
+  cancelAnimationFrame(day10Anim);
+  const canvas = document.getElementById('day10-bg');
+  fitCanvas(canvas);
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  let t = 0;
+  function draw() {
+    t += 0.005;
+    ctx.clearRect(0, 0, W, H);
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#020b18'); bg.addColorStop(1, '#000508');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    // Soft wave lines
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      for (let x = 0; x <= W; x += 5) {
+        const y = H * (0.3 + i * 0.15) + Math.sin(x * 0.008 + t + i) * 20;
+        x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.strokeStyle = `rgba(0,180,255,${0.04 - i * 0.008})`;
+      ctx.lineWidth = 1; ctx.stroke();
+    }
+    day10Anim = requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+// ============================================================
+// INIT CURRENT DAY
+// ============================================================
+const dayInits = { 1: initDay1, 2: initDay2, 3: initDay3, 4: initDay4, 5: initDay5, 6: initDay6, 7: initDay7, 8: initDay8, 9: initDay9, 10: initDay10 };
+
+function initDay(n) {
+  // Cancel all running animations
+  [day1Anim, day2Anim, day3Anim, day4Anim, day5Anim, day6Anim, day7Anim, day8Anim, day9Anim, day10Anim].forEach(id => cancelAnimationFrame(id));
+  if (dayInits[n]) dayInits[n]();
+}
+
+// Keyboard nav
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowRight') nextDay();
+  if (e.key === 'ArrowLeft') prevDay();
+  if (e.key === 'Escape') { closePopup(); closeTEKS(); }
+});
+
+// Handle resize
+window.addEventListener('resize', () => { initDay(currentDay); });
+
+// Start
+initDay1();
+</script>
+
+</body>
+</html>
